@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taska - Kanban Board</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #1a1a1a;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .kanban-container {
+            display: flex;
+            height: 100vh;
+            padding: 20px;
+            gap: 16px;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        .kanban-column {
+            min-width: 300px;
+            max-width: 300px;
+            background: #ffffff;
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .column-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+
+        .column-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+            flex: 1;
+            padding: 4px 8px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .column-title:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: #fff;
+        }
+
+        .column-menu {
+            position: relative;
+        }
+
+        .menu-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            color: #6b7280;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .menu-button:hover {
+            background: #f3f4f6;
+            color: #1a1a1a;
+        }
+
+        .menu-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border: 1px solid #e5e5e5;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            min-width: 150px;
+            z-index: 10;
+            display: none;
+        }
+
+        .menu-dropdown.show {
+            display: block;
+        }
+
+        .menu-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #1a1a1a;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .menu-item:hover {
+            background: #f3f4f6;
+        }
+
+        .menu-item.danger {
+            color: #dc2626;
+        }
+
+        .menu-item.danger:hover {
+            background: #fee2e2;
+        }
+
+        .cards-container {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            min-height: 0;
+        }
+
+        .kanban-card {
+            background: #ffffff;
+            border: 1px solid #e5e5e5;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: grab;
+            transition: all 0.2s;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .kanban-card:hover {
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-color: #d1d5db;
+        }
+
+        .kanban-card.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+
+        .kanban-card.drag-over {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+            padding: 4px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            cursor: text;
+            min-height: 24px;
+        }
+
+        .card-title:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: #fff;
+        }
+
+        .card-description {
+            font-size: 12px;
+            color: #6b7280;
+            padding: 4px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            cursor: text;
+            min-height: 20px;
+            resize: none;
+            width: 100%;
+            font-family: inherit;
+        }
+
+        .card-description:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: #fff;
+        }
+
+        .add-card-button {
+            width: 100%;
+            padding: 8px;
+            background: #f9fafb;
+            border: 1px dashed #d1d5db;
+            border-radius: 6px;
+            color: #6b7280;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 8px;
+        }
+
+        .add-card-button:hover {
+            background: #f3f4f6;
+            border-color: #9ca3af;
+            color: #1a1a1a;
+        }
+
+        .add-column-button {
+            min-width: 300px;
+            max-width: 300px;
+            background: #ffffff;
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #6b7280;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .add-column-button:hover {
+            background: #f9fafb;
+            border-color: #9ca3af;
+            color: #1a1a1a;
+        }
+
+        .card-count {
+            background: #e5e7eb;
+            color: #6b7280;
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
+
+        /* Scrollbar styling */
+        .cards-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .cards-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .cards-container::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 3px;
+        }
+
+        .cards-container::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+
+        .kanban-container::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .kanban-container::-webkit-scrollbar-track {
+            background: #f5f5f5;
+        }
+
+        .kanban-container::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 4px;
+        }
+
+        .kanban-container::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #9ca3af;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .empty-state-text {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="kanban-container" id="kanbanContainer">
+        <!-- Columns will be dynamically added here -->
+    </div>
+
+    <script>
+        // Generate unique IDs
+        function createId() {
+            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        }
+
+        // Kanban Board State
+        let kanbanData = {
+            columns: []
+        };
+
+        // Load from localStorage
+        function loadKanbanData() {
+            const saved = localStorage.getItem('kanban-data');
+            if (saved) {
+                try {
+                    kanbanData = JSON.parse(saved);
+                } catch (e) {
+                    console.error('Error loading kanban data:', e);
+                }
+            }
+            
+            // Initialize with default columns if empty
+            if (kanbanData.columns.length === 0) {
+                kanbanData.columns = [
+                    { id: createId(), title: 'To Do', cards: [] },
+                    { id: createId(), title: 'In Progress', cards: [] },
+                    { id: createId(), title: 'Done', cards: [] }
+                ];
+            }
+        }
+
+        // Save to localStorage
+        function saveKanbanData() {
+            localStorage.setItem('kanban-data', JSON.stringify(kanbanData));
+        }
+
+        // Render the kanban board
+        function renderKanban() {
+            const container = document.getElementById('kanbanContainer');
+            container.innerHTML = '';
+
+            kanbanData.columns.forEach((column, columnIndex) => {
+                const columnEl = createColumnElement(column, columnIndex);
+                container.appendChild(columnEl);
+            });
+
+            // Add "Add Column" button
+            const addColumnBtn = document.createElement('div');
+            addColumnBtn.className = 'add-column-button';
+            addColumnBtn.innerHTML = '+ Add Column';
+            addColumnBtn.onclick = addColumn;
+            container.appendChild(addColumnBtn);
+        }
+
+        // Create column element
+        function createColumnElement(column, columnIndex) {
+            const columnDiv = document.createElement('div');
+            columnDiv.className = 'kanban-column';
+            columnDiv.dataset.columnId = column.id;
+            columnDiv.dataset.columnIndex = columnIndex;
+
+            // Column header
+            const header = document.createElement('div');
+            header.className = 'column-header';
+
+            const title = document.createElement('div');
+            title.className = 'column-title';
+            title.contentEditable = true;
+            title.textContent = column.title;
+            title.onblur = (e) => {
+                column.title = e.target.textContent.trim() || 'Untitled';
+                saveKanbanData();
+            };
+            title.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.target.blur();
+                }
+            };
+
+            const cardCount = document.createElement('span');
+            cardCount.className = 'card-count';
+            cardCount.textContent = column.cards.length;
+
+            const menu = document.createElement('div');
+            menu.className = 'column-menu';
+
+            const menuButton = document.createElement('button');
+            menuButton.className = 'menu-button';
+            menuButton.innerHTML = '⋮';
+            menuButton.onclick = (e) => {
+                e.stopPropagation();
+                toggleMenu(menu);
+            };
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'menu-dropdown';
+
+            const deleteItem = document.createElement('button');
+            deleteItem.className = 'menu-item danger';
+            deleteItem.textContent = 'Delete Column';
+            deleteItem.onclick = () => {
+                deleteColumn(column.id);
+                closeMenu(menu);
+            };
+
+            dropdown.appendChild(deleteItem);
+            menu.appendChild(menuButton);
+            menu.appendChild(dropdown);
+
+            header.appendChild(title);
+            header.appendChild(cardCount);
+            header.appendChild(menu);
+
+            // Cards container
+            const cardsContainer = document.createElement('div');
+            cardsContainer.className = 'cards-container';
+
+            if (column.cards.length === 0) {
+                const emptyState = document.createElement('div');
+                emptyState.className = 'empty-state';
+                emptyState.innerHTML = '<div class="empty-state-icon">📋</div><div class="empty-state-text">No cards</div>';
+                cardsContainer.appendChild(emptyState);
+            } else {
+                column.cards.forEach((card, cardIndex) => {
+                    const cardEl = createCardElement(card, column.id, cardIndex);
+                    cardsContainer.appendChild(cardEl);
+                });
+            }
+
+            // Add card button
+            const addCardBtn = document.createElement('button');
+            addCardBtn.className = 'add-card-button';
+            addCardBtn.textContent = '+ Add Card';
+            addCardBtn.onclick = () => addCard(column.id);
+
+            columnDiv.appendChild(header);
+            columnDiv.appendChild(cardsContainer);
+            columnDiv.appendChild(addCardBtn);
+
+            // Drag and drop handlers
+            setupColumnDragAndDrop(columnDiv, column.id);
+
+            return columnDiv;
+        }
+
+        // Create card element
+        function createCardElement(card, columnId, cardIndex) {
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'kanban-card';
+            cardDiv.dataset.cardId = card.id;
+            cardDiv.dataset.columnId = columnId;
+            cardDiv.draggable = true;
+
+            const title = document.createElement('div');
+            title.className = 'card-title';
+            title.contentEditable = true;
+            title.textContent = card.title || 'Untitled Card';
+            title.onblur = (e) => {
+                card.title = e.target.textContent.trim() || 'Untitled Card';
+                saveKanbanData();
+            };
+            title.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.target.blur();
+                }
+            };
+
+            const description = document.createElement('textarea');
+            description.className = 'card-description';
+            description.placeholder = 'Add description...';
+            description.value = card.description || '';
+            description.onblur = (e) => {
+                card.description = e.target.value;
+                saveKanbanData();
+            };
+
+            cardDiv.appendChild(title);
+            cardDiv.appendChild(description);
+
+            // Drag and drop handlers
+            setupCardDragAndDrop(cardDiv, card.id, columnId);
+
+            return cardDiv;
+        }
+
+        // Setup card drag and drop
+        function setupCardDragAndDrop(cardEl, cardId, columnId) {
+            cardEl.addEventListener('dragstart', (e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', JSON.stringify({ cardId, columnId }));
+                cardEl.classList.add('dragging');
+            });
+
+            cardEl.addEventListener('dragend', () => {
+                cardEl.classList.remove('dragging');
+                document.querySelectorAll('.kanban-card').forEach(c => c.classList.remove('drag-over'));
+            });
+
+            cardEl.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                cardEl.classList.add('drag-over');
+            });
+
+            cardEl.addEventListener('dragleave', () => {
+                cardEl.classList.remove('drag-over');
+            });
+
+            cardEl.addEventListener('drop', (e) => {
+                e.preventDefault();
+                cardEl.classList.remove('drag-over');
+                
+                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                if (data.cardId !== cardId) {
+                    moveCard(data.cardId, data.columnId, columnId, cardId);
+                }
+            });
+        }
+
+        // Setup column drag and drop for cards
+        function setupColumnDragAndDrop(columnEl, columnId) {
+            const cardsContainer = columnEl.querySelector('.cards-container');
+
+            cardsContainer.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+            });
+
+            cardsContainer.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                if (data.columnId !== columnId) {
+                    moveCard(data.cardId, data.columnId, columnId);
+                }
+            });
+        }
+
+        // Move card between columns
+        function moveCard(cardId, fromColumnId, toColumnId, beforeCardId = null) {
+            const fromColumn = kanbanData.columns.find(c => c.id === fromColumnId);
+            const toColumn = kanbanData.columns.find(c => c.id === toColumnId);
+            
+            if (!fromColumn || !toColumn) return;
+
+            const cardIndex = fromColumn.cards.findIndex(c => c.id === cardId);
+            if (cardIndex === -1) return;
+
+            const card = fromColumn.cards.splice(cardIndex, 1)[0];
+
+            if (beforeCardId) {
+                const beforeIndex = toColumn.cards.findIndex(c => c.id === beforeCardId);
+                if (beforeIndex !== -1) {
+                    toColumn.cards.splice(beforeIndex, 0, card);
+                } else {
+                    toColumn.cards.push(card);
+                }
+            } else {
+                toColumn.cards.push(card);
+            }
+
+            saveKanbanData();
+            renderKanban();
+        }
+
+        // Add column
+        function addColumn() {
+            const newColumn = {
+                id: createId(),
+                title: 'New Column',
+                cards: []
+            };
+            kanbanData.columns.push(newColumn);
+            saveKanbanData();
+            renderKanban();
+            
+            // Focus the new column title
+            setTimeout(() => {
+                const newColumnEl = document.querySelector(`[data-column-id="${newColumn.id}"]`);
+                if (newColumnEl) {
+                    const title = newColumnEl.querySelector('.column-title');
+                    title.focus();
+                    const range = document.createRange();
+                    range.selectNodeContents(title);
+                    range.collapse(false);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+            }, 100);
+        }
+
+        // Delete column
+        function deleteColumn(columnId) {
+            if (kanbanData.columns.length <= 1) {
+                alert('You must have at least one column');
+                return;
+            }
+            kanbanData.columns = kanbanData.columns.filter(c => c.id !== columnId);
+            saveKanbanData();
+            renderKanban();
+        }
+
+        // Add card
+        function addCard(columnId) {
+            const column = kanbanData.columns.find(c => c.id === columnId);
+            if (!column) return;
+
+            const newCard = {
+                id: createId(),
+                title: 'New Card',
+                description: ''
+            };
+            column.cards.push(newCard);
+            saveKanbanData();
+            renderKanban();
+
+            // Focus the new card title
+            setTimeout(() => {
+                const cardEl = document.querySelector(`[data-card-id="${newCard.id}"]`);
+                if (cardEl) {
+                    const title = cardEl.querySelector('.card-title');
+                    title.focus();
+                    const range = document.createRange();
+                    range.selectNodeContents(title);
+                    range.collapse(false);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+            }, 100);
+        }
+
+        // Menu functions
+        function toggleMenu(menu) {
+            // Close all other menus
+            document.querySelectorAll('.menu-dropdown').forEach(m => {
+                if (m !== menu.querySelector('.menu-dropdown')) {
+                    m.classList.remove('show');
+                }
+            });
+            
+            const dropdown = menu.querySelector('.menu-dropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        function closeMenu(menu) {
+            const dropdown = menu.querySelector('.menu-dropdown');
+            dropdown.classList.remove('show');
+        }
+
+        // Close menus when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.column-menu')) {
+                document.querySelectorAll('.menu-dropdown').forEach(m => m.classList.remove('show'));
+            }
+        });
+
+        // Initialize
+        loadKanbanData();
+        renderKanban();
+    </script>
+</body>
+</html>
+

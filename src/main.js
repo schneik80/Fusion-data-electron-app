@@ -87,10 +87,60 @@ function setupViewWebContents(webContents, url) {
   });
 }
 
+// Convert custom URL schemes to actual URLs
+function resolveUrl(url) {
+  if (url.startsWith('taska://')) {
+    // Handle taska:// URLs - convert to local file paths
+    if (url === 'taska://kanban') {
+      // Get the path to kanban.html
+      // In development: __dirname points to .webpack/main
+      // In production: __dirname points to app.asar
+      // We need to go up to the app root and then into src
+      let kanbanPath;
+      const fs = require('fs');
+      
+      // Try multiple path strategies
+      const possiblePaths = [
+        path.join(__dirname, '..', 'src', 'kanban.html'), // Development
+        path.join(app.getAppPath(), 'src', 'kanban.html'), // Production
+        path.join(process.resourcesPath, 'app', 'src', 'kanban.html'), // Alternative production path
+      ];
+      
+      // Find the first path that exists
+      for (const testPath of possiblePaths) {
+        try {
+          if (fs.existsSync(testPath)) {
+            kanbanPath = testPath;
+            console.log('Found kanban.html at:', kanbanPath);
+            break;
+          }
+        } catch (e) {
+          // Continue to next path
+        }
+      }
+      
+      // Fallback to first path if none found
+      if (!kanbanPath) {
+        kanbanPath = possiblePaths[0];
+        console.warn('Kanban.html not found, using fallback path:', kanbanPath);
+      }
+      
+      // Normalize path separators for file:// URL
+      // On Windows, we need to replace backslashes with forward slashes
+      const normalizedPath = path.resolve(kanbanPath).replace(/\\/g, '/');
+      return `file://${normalizedPath}`;
+    }
+  }
+  return url;
+}
+
 // Get or create a BrowserView for a specific URL
 function getOrCreateView(url) {
-  if (viewsByUrl.has(url)) {
-    return viewsByUrl.get(url);
+  // Resolve custom URL schemes
+  const resolvedUrl = resolveUrl(url);
+  
+  if (viewsByUrl.has(resolvedUrl)) {
+    return viewsByUrl.get(resolvedUrl);
   }
   
   // Create new BrowserView with persistent session
@@ -105,19 +155,19 @@ function getOrCreateView(url) {
   });
   
   // Set up webContents handlers
-  setupViewWebContents(view.webContents, url);
+  setupViewWebContents(view.webContents, resolvedUrl);
   
   // Set initial bounds (will be updated when shown)
   // Use updateAllViewBounds to ensure consistent sizing
   updateAllViewBounds();
   
   // Store the view
-  viewsByUrl.set(url, view);
+  viewsByUrl.set(resolvedUrl, view);
   
   // Load the URL
-  view.webContents.loadURL(url);
+  view.webContents.loadURL(resolvedUrl);
   
-  console.log('Created new BrowserView for:', url);
+  console.log('Created new BrowserView for:', resolvedUrl);
   return view;
 }
 
@@ -128,8 +178,11 @@ function showView(url) {
     return;
   }
   
+  // Resolve custom URL schemes
+  const resolvedUrl = resolveUrl(url);
+  
   // Get or create the view for this URL
-  const targetView = getOrCreateView(url);
+  const targetView = getOrCreateView(resolvedUrl);
   
   // Hide current view if different
   if (currentView && currentView !== targetView) {
@@ -145,7 +198,7 @@ function showView(url) {
   // Update bounds to ensure it's positioned correctly
   updateAllViewBounds();
   
-  console.log('Showing view for:', url);
+  console.log('Showing view for:', resolvedUrl);
 }
 
 function setupRightPane() {
