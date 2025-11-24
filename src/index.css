@@ -1,3 +1,10 @@
+@font-face {
+    font-family: 'SymbolsNerdFont';
+    src: url('./navicons/SymbolsNerdFont-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -71,9 +78,14 @@ body {
 }
 
 .sidebar .logo-details .menu-icon {
+    font-family: 'SymbolsNerdFont', monospace;
+    font-size: 24px;
+    color: #333;
+    display: inline-block;
     width: 24px;
     height: 24px;
-    color: #333;
+    line-height: 24px;
+    text-align: center;
 }
 
 .sidebar.open .logo-details .menu-btn {
@@ -81,10 +93,15 @@ body {
 }
 
 .nav-icon {
-    width: 24px;
-    height: 24px;
+    font-family: 'SymbolsNerdFont', monospace;
+    font-size: 24px;
     color: #333;
     flex-shrink: 0;
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    text-align: center;
 }
 
 .sidebar .nav-list {
