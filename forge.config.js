@@ -9,10 +9,10 @@ module.exports = {
     name: 'Autodesk Fusion Data Client',
     // Icon paths - Electron will automatically use the correct format:
     // macOS: icon.icns, Windows: icon.ico, Linux: icon.png
-    // Place your icons in assets/ folder as:
-    // - assets/icon.icns (macOS)
-    // - assets/icon.ico (Windows)
-    // - assets/icon.png (Linux, or fallback)
+    // Icons are located in assets/ folder:
+    // - assets/icon.icns (macOS) - created from autodesk-fusion-product-icon-400.png
+    // - assets/icon.png (Linux/fallback) - 400x400px version
+    // - Windows: Electron Forge will auto-convert PNG to ICO if icon.ico doesn't exist
     icon: path.resolve(__dirname, 'assets', 'icon'),
   },
   rebuildConfig: {},
