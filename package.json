@@ -13,7 +13,12 @@
     "make:linux": "electron-forge make --platform=linux",
     "make:rpm": "electron-forge make --platform=linux --targets=@electron-forge/maker-rpm",
     "publish": "electron-forge publish",
-    "lint": "echo \"No linting configured\""
+    "lint": "echo \"No linting configured\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:build": "npm run test:build:verify",
+    "test:build:verify": "node tests/build-verify.js"
   },
   "keywords": [],
   "author": {
@@ -37,6 +42,8 @@
     "babel-loader": "^10.0.0",
     "css-loader": "^6.11.0",
     "electron": "39.0.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^30.2.0",
     "node-loader": "^2.1.0",
     "style-loader": "^3.3.4"
   },
