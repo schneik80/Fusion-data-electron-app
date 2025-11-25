@@ -1,4 +1,4 @@
-const { app, BrowserWindow, BrowserView } = require('electron');
+const { app, BrowserWindow, BrowserView, session } = require('electron');
 const path = require('path');
 
 // Set app name for macOS menu bar - must be called before app.whenReady()
@@ -8,6 +8,35 @@ let mainWindow;
 const viewsByUrl = new Map(); // Map of URL -> BrowserView
 let currentView = null; // Currently visible BrowserView
 let sidebarOpen = false; // Track sidebar state
+
+// Initialize persistent session early to ensure credential caching works
+// This ensures cookies and credentials are properly persisted in production builds
+function initializePersistentSession() {
+  const persistentSession = session.fromPartition('persist:web-view', { cache: true });
+  
+  console.log('Initializing persistent session:', persistentSession.partition);
+  console.log('User data path:', app.getPath('userData'));
+  
+  // Ensure cookies are flushed to disk when changed
+  persistentSession.cookies.on('changed', (event, cookie, cause, removed) => {
+    if (!removed) {
+      // Cookie was set or updated, flush to ensure persistence
+      persistentSession.cookies.flushStore().catch(err => {
+        console.error('Error flushing cookies:', err);
+      });
+    }
+  });
+  
+  // Periodically flush cookies to ensure persistence (every 30 seconds)
+  // This is especially important in production builds
+  setInterval(() => {
+    persistentSession.cookies.flushStore().catch(err => {
+      console.error('Error flushing cookies (periodic):', err);
+    });
+  }, 30000);
+  
+  return persistentSession;
+}
 
 function createWindow() {
   // Electron Forge webpack plugin injects MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY as a string constant
@@ -29,6 +58,7 @@ function createWindow() {
       contextIsolation: true,
       devTools: false,
       backgroundThrottling: false, // Better performance
+      partition: 'persist:web-view', // Use same session partition for credential sharing
     },
   });
   
@@ -65,25 +95,82 @@ function updateAllViewBounds() {
 }
 
 // Setup CSS injection and event handlers for a BrowserView's webContents
-function setupViewWebContents(webContents, url) {
+function setupViewWebContents(webContents, initialUrl) {
   // Optimize web contents for faster loading
   webContents.on('did-start-loading', () => {
     webContents.setZoomFactor(1.0);
   });
   
+  // Handle navigation to track URL changes (important for post-login redirects)
+  webContents.on('did-navigate', (event, url) => {
+    console.log('BrowserView navigated to:', url);
+    // Update the view mapping if URL changed (e.g., after login redirect)
+    if (viewsByUrl.has(initialUrl) && url !== initialUrl) {
+      const view = viewsByUrl.get(initialUrl);
+      viewsByUrl.delete(initialUrl);
+      viewsByUrl.set(url, view);
+      console.log('Updated view mapping from', initialUrl, 'to', url);
+    }
+  });
+  
+  // Handle navigation within the same page (hash changes, etc.)
+  webContents.on('did-navigate-in-page', (event, url, isMainFrame) => {
+    if (isMainFrame) {
+      console.log('BrowserView navigated in-page to:', url);
+      // Update mapping for in-page navigation too
+      if (viewsByUrl.has(initialUrl) && url !== initialUrl) {
+        const view = viewsByUrl.get(initialUrl);
+        viewsByUrl.delete(initialUrl);
+        viewsByUrl.set(url, view);
+      }
+    }
+  });
+  
   // Inject CSS to hide elements whenever a page finishes loading
   webContents.on('did-finish-load', () => {
-    webContents.insertCSS(`
-      .shopfloor-link {
-        display: none !important;
+    const currentUrl = webContents.getURL();
+    console.log('BrowserView finished loading:', currentUrl);
+    
+    // Update mapping if URL changed during load (e.g., after login redirect)
+    if (viewsByUrl.has(initialUrl) && currentUrl !== initialUrl) {
+      const view = viewsByUrl.get(initialUrl);
+      viewsByUrl.delete(initialUrl);
+      viewsByUrl.set(currentUrl, view);
+      console.log('Updated view mapping after load from', initialUrl, 'to', currentUrl);
+      
+      // If this is the current view, ensure it's still properly displayed
+      if (currentView === view && mainWindow) {
+        // Ensure the view is still attached and visible
+        const attachedView = mainWindow.getBrowserView();
+        if (attachedView !== view) {
+          console.log('Re-attaching view after URL change');
+          mainWindow.setBrowserView(view);
+          updateAllViewBounds();
+        }
       }
-      .flc-link {
-        display: none !important;
-      }
-      #fusion-header-fuison-link {
-        display: none !important;
-      }
-    `);
+    }
+    
+    // Small delay to ensure page is fully rendered before injecting CSS
+    setTimeout(() => {
+      webContents.insertCSS(`
+        .shopfloor-link {
+          display: none !important;
+        }
+        .flc-link {
+          display: none !important;
+        }
+        #fusion-header-fuison-link {
+          display: none !important;
+        }
+      `).catch(err => {
+        console.error('Error injecting CSS:', err);
+      });
+    }, 100);
+  });
+  
+  // Handle page load failures
+  webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error('BrowserView failed to load:', validatedURL, errorCode, errorDescription);
   });
 }
 
@@ -154,6 +241,17 @@ function getOrCreateView(url) {
     },
   });
   
+  // Verify session is persistent and configure cookie persistence
+  const viewSession = view.webContents.session;
+  console.log('BrowserView session partition:', viewSession.partition);
+  
+  // Ensure cookies are persisted by flushing on changes
+  viewSession.cookies.on('changed', () => {
+    viewSession.cookies.flushStore().catch(err => {
+      console.error('Error flushing cookies for view:', err);
+    });
+  });
+  
   // Set up webContents handlers
   setupViewWebContents(view.webContents, resolvedUrl);
   
@@ -181,8 +279,38 @@ function showView(url) {
   // Resolve custom URL schemes
   const resolvedUrl = resolveUrl(url);
   
-  // Get or create the view for this URL
-  const targetView = getOrCreateView(resolvedUrl);
+  // Check if we already have a view for this URL
+  let targetView = viewsByUrl.get(resolvedUrl);
+  
+  // If no view found, check if any existing view has navigated to this URL
+  if (!targetView) {
+    // Search through all views to find one that has navigated to this URL
+    for (const [storedUrl, view] of viewsByUrl.entries()) {
+      const currentUrl = view.webContents.getURL();
+      if (currentUrl === resolvedUrl || currentUrl.startsWith(resolvedUrl.split('?')[0])) {
+        // Found a view that has navigated to this URL (e.g., after login redirect)
+        targetView = view;
+        // Update the mapping to use the current URL
+        viewsByUrl.delete(storedUrl);
+        viewsByUrl.set(resolvedUrl, view);
+        console.log('Found redirected view, updated mapping from', storedUrl, 'to', resolvedUrl);
+        break;
+      }
+    }
+  }
+  
+  // If still no view found, create a new one
+  if (!targetView) {
+    targetView = getOrCreateView(resolvedUrl);
+  } else {
+    // View exists, ensure it's loaded and visible
+    const currentUrl = targetView.webContents.getURL();
+    if (currentUrl !== resolvedUrl && !currentUrl.startsWith(resolvedUrl.split('?')[0])) {
+      // URL doesn't match, reload to the requested URL
+      console.log('Reloading view to:', resolvedUrl);
+      targetView.webContents.loadURL(resolvedUrl);
+    }
+  }
   
   // Hide current view if different
   if (currentView && currentView !== targetView) {
@@ -198,7 +326,22 @@ function showView(url) {
   // Update bounds to ensure it's positioned correctly
   updateAllViewBounds();
   
+  // Ensure the view is visible and properly loaded
+  const currentUrl = targetView.webContents.getURL();
+  const isLoading = targetView.webContents.isLoading();
+  
   console.log('Showing view for:', resolvedUrl);
+  console.log('Current view URL:', currentUrl);
+  console.log('Is loading:', isLoading);
+  
+  // If the page is still loading, wait for it to finish
+  if (isLoading) {
+    targetView.webContents.once('did-finish-load', () => {
+      console.log('View finished loading, current URL:', targetView.webContents.getURL());
+      // Ensure bounds are correct after load
+      updateAllViewBounds();
+    });
+  }
 }
 
 function setupRightPane() {
@@ -243,7 +386,11 @@ ipcMain.on('sidebar-toggle', (event, isOpen) => {
   updateAllViewBounds();
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  // Initialize persistent session before creating windows
+  initializePersistentSession();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
