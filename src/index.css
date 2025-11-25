@@ -109,6 +109,13 @@ body {
     height: calc(100% - 80px);
     overflow-y: auto;
     overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar .nav-list .profile-item {
+    margin-top: auto;
+    margin-bottom: 0;
 }
 
 .sidebar li {

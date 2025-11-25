@@ -100,18 +100,11 @@ function menuBtnChange() {
   if (!menuIcon) return;
   
   if (sidebar.classList.contains("open")) {
-    // Change to close icon (X)
-    menuIcon.innerHTML = `
-      <line x1="18" y1="6" x2="6" y2="18"></line>
-      <line x1="6" y1="6" x2="18" y2="18"></line>
-    `;
+    // Change to close icon (X) - using nerdfont
+    menuIcon.innerHTML = '&#xf00d;';
   } else {
-    // Change to menu icon (hamburger)
-    menuIcon.innerHTML = `
-      <line x1="3" y1="12" x2="21" y2="12"></line>
-      <line x1="3" y1="6" x2="21" y2="6"></line>
-      <line x1="3" y1="18" x2="21" y2="18"></line>
-    `;
+    // Change to menu icon (hamburger) - using nerdfont f0c9
+    menuIcon.innerHTML = '&#xf0c9;';
   }
 }
 
